@@ -1,5 +1,6 @@
 {
   "name": "developion/craft-translations",
+  "version": "1.0.0",
   "description": "Plugin for translations",
   "type": "craft-plugin",
   "license": "mit",
