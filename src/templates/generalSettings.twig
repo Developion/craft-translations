@@ -1,0 +1,34 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms.twig' as forms %}
+{% set fullPageForm = true %}
+{% set title = 'Craft Translations' %}
+
+{% block content %}
+	{{ actionInput('craft-translations/settings/save') }}
+	{{ forms.editableTableField({
+		label: 'Translations' | t('craft-translations'),
+		instructions: 'You can translate strings' | t('craft-translations'),
+		attribute: 'translations',
+		id: 'translations',
+		name: 'translations',
+		cols: {
+			original: {
+				type: 'singleline',
+				heading: 'Original Sttring' | t('craft-translations'),
+			},
+			translate: {
+				type: 'singleline',
+				heading: 'Translation String' | t('craft-translations'),
+			},
+			pluginHandle: {
+				heading: "Plugin handle" | t("craft-translations"),
+				type: "select" |t("craft-translations"),
+                options: handles,
+			},
+		} | filter,
+		allowAdd: true,
+		rows: translations,
+		allowDelete: true,
+		allowReorder: true,
+	}) }}
+{% endblock %}

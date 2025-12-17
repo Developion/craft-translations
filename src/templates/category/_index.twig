@@ -1,0 +1,219 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms.twig' as forms %}
+{% set fullPageForm = true %}
+{% set title = 'Craft Translations' %}
+
+{% set tableData = [] %}
+{% set editableNavs = 0 %}
+
+{% block actionButton %}{% endblock %}
+{% block content %}
+	{{ hiddenInput('lang', lang) }}
+	<div class="translations-header">
+		<div class="translations-header__text">
+			<h2>
+				{{ 'You are editing the {workingLang} version'| t('craft-translations', { workingLang: workingLang }) }}
+			</h2>
+			<h5>
+				{{ 'Editing {workingLang}. Select another language to change.'| t('craft-translations', { workingLang: workingLang }) }}
+			</h5>
+		</div>
+
+		<div class="translations-header__actions">
+			<a href="{{ url('craft-translations/export') }}" class="btn submit">
+				{{ 'Export'|t('craft-translations') }}
+			</a>
+		</div>
+		<input type="file"
+			id="csvInput"
+			accept=".csv"
+			required>
+
+		<button type="button"
+				class="btn submit"
+				id="importBtn">
+			Import
+		</button>
+	</div>
+    <div id="translations-vue-admin-table"></div>
+{% endblock %}
+
+{% do view.registerAssetBundle('craft\\web\\assets\\admintable\\AdminTableAsset') -%}
+{% set currentLang = craft.app.request.getParam('lang') ?? 'en' %}
+{% set currentParams = craft.app.request.getQueryParams() %}
+
+{% set langCrumb = [{
+  id: 'lang-crumb',
+  icon: 'language',
+  label: languages[currentLang] ?? currentLang,
+  menu: {
+    label: 'Select language'|t('app'),
+    items: languages|map((label, code) => {
+      label: label,
+      url: url(craft.app.request.getPathInfo(), currentParams|merge({ lang: code })),
+      checked: code == currentLang,
+    })|values
+  }
+}] %}
+
+  {% set crumbs = langCrumb|merge([
+	{ label: 'Translations' },
+	{ label: 'Manage Translation'|t('craft-translations') },
+  ]) %}
+
+{% for item in collection %}
+    {% set canDelete = currentUser.can('translation-deleteNav:' ~ item.id) ? true : false %}
+
+    {% set tableData = tableData | merge([{
+        id: item.collection.id,
+        title: item.collection.handle | capitalize | t('site'),
+        url: url('craft-translations/category/' ~ item.id),
+        name: item.collection.handle | t('site') | e,
+        handle: item.collection.handle,
+        _showDelete: canDelete
+    }]) %}
+
+    {% if currentUser.can('translation-editNav:' ~ item.id) %}
+        {% set editableNavs = editableNavs + 1 %}
+    {% endif %}
+{% endfor %}
+
+{% js %}
+(function ($) {
+    $(function () {
+
+		var emptyMessage = ''
+
+        var columns = [
+            { name: '__slot:title', title: Craft.t('app', 'Name') },
+            { name: '__slot:handle', title: Craft.t('app', 'Handle') },
+        ];
+
+        var allTableData = {{ tableData | json_encode | raw }};
+
+        var adminTable = new Craft.VueAdminTable({
+            columns: columns,
+            container: '#translations-vue-admin-table',
+            emptyMessage: Craft.t('translation', 'No translation categories yet.'),
+            tableData: allTableData
+
+        });
+
+        function rowToSearchText(row) {
+            var parts = [
+                row.title,
+                row.name,
+                row.handle,
+
+                row.__slot__title,
+                row.__slot__handle,
+                row['__slot:title'],
+                row['__slot:handle'],
+            ];
+
+            return parts.filter(Boolean).join(' ').toLowerCase();
+        }
+
+        function getFilteredData(query) {
+            query = (query || '').trim().toLowerCase();
+            if (!query) return allTableData;
+
+            return allTableData.filter(function (row) {
+                return rowToSearchText(row).includes(query);
+            });
+        }
+
+        var debounce = (window.Garnish && typeof Garnish.debounce === 'function')
+            ? Garnish.debounce
+            : function (fn, wait) {
+                var t;
+                return function () {
+                    var ctx = this, args = arguments;
+                    clearTimeout(t);
+                    t = setTimeout(function () { fn.apply(ctx, args); }, wait);
+                };
+            };
+
+        var onSearchInput = debounce(function () {
+            var q = $('#search').val();
+            var filtered = getFilteredData(q);
+
+            if (typeof adminTable.setTableData === 'function') {
+                adminTable.setTableData(filtered);
+            } else if (adminTable.vm) {
+                adminTable.vm.tableData = filtered;
+                adminTable.vm.$forceUpdate();
+            } else {
+                $('#translations-vue-admin-table').empty();
+                adminTable = new Craft.VueAdminTable({
+                    columns: columns,
+                    container: '#translations-vue-admin-table',
+                    emptyMessage: Craft.t('translation', 'No translation category found'),
+                    tableData: filtered,
+                });
+            }
+        }, 200);
+
+        $('#search').on('input', onSearchInput);
+
+        var $siteMenuBtn = $('#header .sitemenubtn:first');
+        if ($siteMenuBtn.length) {
+            var siteMenu = $siteMenuBtn.menubtn().data('menubtn').menu;
+
+            siteMenu.on('optionselect', function (ev) {
+                siteMenu.$options.removeClass('sel');
+                var $option = $(ev.selectedOption).addClass('sel');
+                $siteMenuBtn.html($option.html());
+                Craft.cp.setSiteId($option.data('site-id'));
+                location.reload();
+            });
+        }
+
+    });
+})(jQuery);
+{% endjs %}
+
+{% js %}
+(() => {
+    const button = document.getElementById('importBtn');
+    const input  = document.getElementById('csvInput');
+
+    button.addEventListener('click', async () => {
+        if (!input.files.length) {
+            alert('Please select a CSV file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv', input.files[0]);
+        formData.append(
+            Craft.csrfTokenName,
+            Craft.csrfTokenValue
+        );
+
+        try {
+            const response = await fetch(
+                Craft.getActionUrl('craft-translations/translations/import'),
+                {
+                    method: 'POST',
+                    body: formData,
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Upload failed');
+            }
+
+            const result = await response.text();
+
+            Craft.cp.displayNotice('Import successful');
+            // optionally reload or redirect
+            // location.reload();
+
+        } catch (err) {
+            console.error(err);
+            Craft.cp.displayError('Import failed');
+        }
+    });
+})();
+{% endjs %}

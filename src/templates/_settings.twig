@@ -1,0 +1,24 @@
+{% import '_includes/forms.twig' as forms %}
+{% set fullPageForm = true %}
+
+{% block content %}
+	{{ forms.lightswitchField({
+		label: 'Enable registered translations',
+		attribute: 'enableSearch',
+		id: 'enableSearch',
+		name: 'enableSearch',
+		first: true,
+	}) }}
+
+	{{ forms.button({
+		class: ['hairline', 'translation-cron-job'],
+		spinner: true,
+		type: 'button',
+		label: 'Run Cron Job'|t('craft-translations'),
+	  }) }}
+{% endblock %}
+
+{% js %}
+	console.log('test')
+{% endjs %}
+

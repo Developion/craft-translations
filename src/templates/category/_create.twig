@@ -1,0 +1,135 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms.twig' as forms %}
+{% set fullPageForm = true %}
+
+{% set titleHandle = data.collection.handle|capitalize %}
+{% set title = 'You’re working on the {titleHandle} collection right now'|t('craft-translations', {
+	titleHandle: titleHandle
+}) %}
+
+{% set crumbs = [
+    { label: 'Translations' },
+    { label: 'Manage Translation' | t('craft-translations') },
+] %}
+
+{% block pageTitle %}
+	<div class="title-wrapper">
+		<a class="btn" href="{{ url('craft-translations', { lang: data.language }) }}">{{ "Back"|t('app') }}</a>
+		<h1 style="margin:0;">{{ title }}</h1>
+	</div>
+
+{% endblock %}
+
+{% block content %}
+	<div class="translations-toolbar">
+		<div class="translations-toolbar__left">
+			<a class="btn submit" href="{{ actionUrl(
+				'craft-translations/translations/export-single',
+				{ handle: data.collection.handle }
+			) }}">
+				Export
+			</a>
+		</div>
+
+		<div class="translations-toolbar__right">
+			<input type="file"
+				   id="csvInput"
+				   accept=".csv"
+				   required>
+
+			<button type="button"
+					class="btn submit"
+					id="importBtn">
+				Import
+			</button>
+		</div>
+	</div>
+	<div class="message-create-wrapper">
+		<h2>
+			{{ '{workingLang} version'| t('craft-translations', { workingLang: workingLang }) }}
+		</h2>
+		<h5>
+			{{ 'Go back and select another language/site to change.'| t('craft-translations') }}
+		</h5>
+	</div>
+	<div class="search-wrapper" style="padding-top=1rem;">
+		{{ forms.textField({
+			id: 'search',
+			label: 'Search' | t('craft-translations'),
+			instructions: 'Search...' | t('craft-translations'),
+			name: 'search',
+		}) }}
+	</div>
+	{{ hiddenInput('id', data.id) }}
+	{{ hiddenInput('lang', data.language) }}
+	{{ csrfInput() }}
+	{{ actionInput('craft-translations/translations/save-category') }}
+	{{ redirectInput(craft.app.request.getUrl()) }}
+	{{ forms.editableTableField({
+			label: 'Translations' | t('craft-translations'),
+			instructions: 'You can translate strings' | t('craft-translations'),
+			attribute: 'translations',
+			id: 'translations',
+			name: 'translations',
+			cols: {
+				original: {
+					heading: "Source Field"|t("craft-translations"),
+					type: "singleline",
+					width: "50%",
+					class: "js-translation-search",
+				},
+				translate: {
+					type: 'singleline',
+					heading: 'Translation String' | t('craft-translations'),
+				}
+			} | filter,
+			rows: data.translations,
+			allowAdd: true,
+			allowDelete: true,
+			allowReorder: true,
+			required: true,
+		}) }}
+{% endblock %}
+
+{% do view.registerAssetBundle(
+	'developion\\craft\\translations\\web\\assets\\TranslationsAsset'
+) %}
+
+
+{% js %}
+(() => {
+    const input = document.getElementById('csvInput');
+    const btn = document.getElementById('importBtn');
+
+    btn.addEventListener('click', async () => {
+        if (!input.files.length) {
+            Craft.cp.displayError('Select a CSV file.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('csv', input.files[0]);
+        formData.append(
+            Craft.csrfTokenName,
+            Craft.csrfTokenValue
+        );
+
+        const url = Craft.getActionUrl(
+            'craft-translations/translations/import-single',
+            { handle: '{{ data.collection.handle }}' }
+        );
+
+        const res = await fetch(url, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (res.ok) {
+            Craft.cp.displayNotice('Import completed.');
+            location.reload();
+        } else {
+            Craft.cp.displayError('Import failed.');
+        }
+    });
+})();
+{% endjs %}
