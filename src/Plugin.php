@@ -10,7 +10,9 @@ use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
 use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
+use developion\craft\translations\i18n\CustomMessageSource;
 use developion\craft\translations\models\Settings;
+use developion\craft\translations\records\Collection;
 use developion\craft\translations\services\Translations;
 use developion\craft\translations\traits\Services;
 use developion\craft\translations\web\assets\TranslationsAsset;
@@ -56,6 +58,16 @@ class Plugin extends BasePlugin
 				TranslationsAsset::class
 			);
 		}
+
+		$cfg = [
+			'class' => CustomMessageSource::class,
+			'forceTranslation' => true,
+		];
+
+		$collection = Collection::find()->all();
+		foreach ($collection as $coll) {
+			Craft::$app->i18n->translations["$coll->handle*"] = $cfg;
+		}
 	}
 
 	protected function createSettingsModel(): ?Model
@@ -75,7 +87,7 @@ class Plugin extends BasePlugin
 
 	private function attachEventHandlers(): void
 	{
-		$this->addTranslationStrings();
+		// $this->addTranslationStrings();
 
 		Event::on(
 			UrlManager::class,
